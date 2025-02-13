@@ -72,18 +72,32 @@ You can see the output result below.
 - The refree is colored pink according to the color of his jersey.
 
 
-## Requirements
+## Installation
 
-Please run the following code to install the Requirements.
+- create a virtual environment and activate it:
+
+`py -m venv .venv`
+
+`.venv\Scripts\activate`
+
+source: https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/
+
+- install the package in the environment
 
 `pip install -r requirements.txt`
-
 
 ## Preparation and Run the code:
 
 1. Download the models from [here](https://docs.google.com/uc?export=download&id=1EaBmCzl4xnuebfoQnxU1xQgNmBy7mWi2) and place them under `weights/`.
 2. Test on your sample video and see the demo results using the command mentioned in the next line:
+
 ```bash
-$ python3 main.py --source test_video.mp4 [--view] [--save]
+python.exe main.py --source 10.mp4 --view  
 ```
+
+Try this one in case the previous one does not work
+```bash
+$ python3 main.py --source 10.mp4 [--view] [--save]
+```
+
 3. If you use the `--save` argument, the output will be saved in the `inference/output` folder.
