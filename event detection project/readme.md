@@ -1,0 +1,24 @@
+# Setup
+
+- Créer et activer l'environement virtuel
+- Installer les packages du requirements.txt
+
+source: https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/
+
+- Choisir l'environement virtuel depuis jupyter notebook
+
+source: https://www.geeksforgeeks.org/using-jupyter-notebook-in-virtual-environment/
+
+NB: J'ai du installer _ipython_ et _ipykernel_ avec ces commandes:
+
+`pip install ipython`
+
+`pip install ipykernel`
+
+avant de rouler la commande de l'article:
+
+`ipython kernel install --user --name=.venv`
+
+
+
+
