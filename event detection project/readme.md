@@ -1,7 +1,14 @@
 # Setup
 
 - Créer et activer l'environement virtuel
+
+`py -m venv .venv`
+
+`.venv\Scripts\activate`
+
 - Installer les packages du requirements.txt
+
+`pip install -r requirements.txt`
 
 source: https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/
 
