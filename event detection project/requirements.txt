@@ -1,8 +1,6 @@
 # pip install -r requirements.txt
 
-# numpy==2.2.3
-numpy>=1.18.5
+numpy
 Pillow
-torch==2.2.0
-torchvision==0.17.0
-
+torch
+torchvision

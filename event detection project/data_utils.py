@@ -2,6 +2,8 @@ import os
 import zipfile
 import numpy as np
 from PIL import Image # pillow
+from torchvision import transforms
+import torch
 
 def extract_images(zip_path, label_name, label_index):
     images = []
@@ -34,10 +36,14 @@ def get_data(folder='train', events=[]):
         images.extend(img)
         labels.extend(lbl)
 
-    # Convertir les données en tableaux numpy
-    # images = np.array(images) / 255.0  # Normaliser les images
-    images = np.array(images)
-    labels = np.array(labels)
+    # Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255]
+    # to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
+    transform = transforms.ToTensor()
+    images = [transform(image) for image in images]
+
+    # Convertir les listes d'images et de labels en tenseurs
+    images = torch.stack(images)
+    labels = torch.tensor(labels)
 
     return images, labels
 
