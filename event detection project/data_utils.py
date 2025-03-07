@@ -14,13 +14,18 @@ def extract_images(zip_path, label_name, label_index):
 
     for file in os.listdir(extract_path+"/"+label_name):
         if file.endswith('.jpg') or file.endswith('.png'):
-            file_path = os.path.join(extract_path, label_name, file)
-            image = Image.open(file_path).convert('RGB')
-            image = image.resize((64, 64))  # Redimensionner les images si nécessaire
-            images.append(np.array(image))
-            labels.append(label_index)
-            image.close()  # Fermer l'image
-            os.remove(file_path)  # Supprimer le fichier extrait pour éviter les duplications
+                file_path = os.path.join(extract_path, label_name, file)
+                try:
+                    image = Image.open(file_path).convert('RGB')
+                    image = image.resize((64, 64))  # Redimensionner les images si nécessaire
+                    images.append(np.array(image))
+                    labels.append(label_index)
+                    image.close()  # Fermer l'image
+                except Exception as e:
+                    print(file_path)
+                    print(f"Une erreur est survenue: {e}")
+                os.remove(file_path)  # Supprimer le fichier extrait pour éviter les duplications
+
     os.rmdir(extract_path+"/"+label_name) # Supprimer le dossier après traitement
     os.rmdir(extract_path)  # Supprimer le dossier après traitement
     return images, labels
