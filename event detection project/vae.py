@@ -24,7 +24,6 @@ class VAE_Encoder(nn.Module):
         self.fc2 = nn.Linear(512, latent_dim)
 
     def forward(self, x):
-        print(type(x))
         x = F.relu(self.bn16(self.enc_conv1(x)))
         x = self.pool(x)
         x = F.relu(self.bn32(self.enc_conv2(x)))
@@ -36,9 +35,6 @@ class VAE_Encoder(nn.Module):
         x = self.adaptive_pool(x)  # Assure une sortie de 1024
 
         x = x.view(x.size(0), -1)
-
-        print(type(x))
-        print(x.shape)
 
         mu, logvar = self.fc1(x[:, :512]), self.fc2(x[:, 512:])
         return mu, logvar
@@ -94,7 +90,7 @@ class VAE_Decoder(nn.Module):
 # Fonction de réparamétrisation de z
 def reparametrize(mu, logvar):
     std = torch.exp(0.5 * logvar)
-    eps = torch.randn_like(std)
+    eps = torch.randn_like(std) # Returns a tensor with the same size as input that is filled with random numbers from a normal distribution with mean 0 and variance 1.
     return mu + eps * std  # z = μ + ε * σ
 
 # Classe complète du VAE
@@ -112,6 +108,9 @@ class VAE(nn.Module):
 
 
 def vae_loss(recon_x, x, mu, logvar):
-    recon_loss = F.mse_loss(recon_x, x, reduction='sum')
+    r_loss = recon_loss(recon_x, x)
     kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return recon_loss + kld_loss
+    return r_loss + kld_loss
+
+def recon_loss(recon_x, x):
+    return F.mse_loss(recon_x, x, reduction='sum')
