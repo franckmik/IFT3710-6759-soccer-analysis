@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.distributions import Normal, kl_divergence
 
 class VAE_Encoder(nn.Module):
     def __init__(self, input_channels=3, latent_dim=512):
@@ -44,10 +45,13 @@ class VAE_Decoder(nn.Module):
         super(VAE_Decoder, self).__init__()
 
         # Fully Connected Layer pour transformer le vecteur latent en tenseur 4D
-        self.fc = nn.Linear(latent_dim, 128 * 4 * 4)
+        self.fc = nn.Linear(latent_dim, 128 * 2 * 2)
 
         # Première opération d'upsampling après le view
-        self.initial_upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        self.initial_upsample = nn.Upsample(scale_factor=4, mode='nearest')
+        # scale_factor=4 : sortie 64 x 64
+        # scale_factor=8 : sortie 128 x 128
+        # scale_factor=14 : sortie 224 x 224
 
         # Déconvolution & Upsampling progressifs
         self.deconv_blocks = nn.Sequential(
@@ -77,7 +81,10 @@ class VAE_Decoder(nn.Module):
     def forward(self, z):
         # Projection du vecteur latent en tenseur 4D
         x = self.fc(z)
-        x = x.view(x.size(0), 128, 4, 4)
+        # x = x.view(x.size(0), 128, 4, 4) pour avoir image 64 x 64 en sortie
+        #x = x.view(x.size(0), 128, 14, 14) # pour avoir image 224 x 224 en sortie
+        #x = x.view(x.size(0), 128, 8, 8) # 128 x 128 en sortie
+        x = x.view(x.size(0), 128, 2, 2)
 
         # **Upsampling avant la première déconv**
         x = self.initial_upsample(x)
@@ -85,7 +92,7 @@ class VAE_Decoder(nn.Module):
         # Upsampling & Convolutions transposées
         x = self.deconv_blocks(x)
 
-        return torch.sigmoid(x)
+        return x
 
 # Fonction de réparamétrisation de z
 def reparametrize(mu, logvar):
@@ -109,7 +116,12 @@ class VAE(nn.Module):
 
 def vae_loss(recon_x, x, mu, logvar):
     r_loss = recon_loss(recon_x, x)
-    kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    # kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+    prior = Normal(torch.zeros_like(mu), torch.ones_like(mu))
+    posterior = Normal(mu, torch.exp(0.5 * logvar))
+    kld_loss = kl_divergence(posterior, prior).sum(dim=1).mean()
+
     return r_loss + kld_loss
 
 def recon_loss(recon_x, x):
