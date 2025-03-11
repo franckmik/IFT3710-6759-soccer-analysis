@@ -11,3 +11,6 @@
 # we ignore data
 
 dataset/*
+cards/dataset/*
+cards/debug_card_model.py
+cards/evaluate_card_model.py
