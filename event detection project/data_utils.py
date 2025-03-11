@@ -24,10 +24,10 @@ def extract_images(folder_path, label_name, label_index):
                 print(file_path)
                 print(f"Une erreur est survenue: {e}")
 
-def get_data(folder='train', events=[]):
+def get_data(folder, events=[]):
     images, labels = [], []
 
-    folder_path = f"dataset/{folder}"
+    folder_path = folder
 
     for index, event in enumerate(events):
         for image, label in extract_images(folder_path, event, index):

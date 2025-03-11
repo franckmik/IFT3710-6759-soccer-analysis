@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal, kl_divergence
-
 class VAE_Encoder(nn.Module):
     def __init__(self, input_channels=3, latent_dim=512):
         super(VAE_Encoder, self).__init__()
