@@ -99,7 +99,7 @@ class SoccerEventClassifier(nn.Module):
     num_features= self.backbone.classifier[1].in_features
 
     #classes in sorted order
-    self.class_names=[
+    self.class_names = [
         'Cards',
         'Center',
         'Corner',
@@ -109,6 +109,9 @@ class SoccerEventClassifier(nn.Module):
         'Right',
         'Tackle',
         'To-Subtitue']
+
+    self.class_names_dict = {key: i for i, key in enumerate(self.class_names)}
+
     self.backbone.classifier= nn.Sequential(
         # first dense Layer
         nn.Linear(num_features,512),
