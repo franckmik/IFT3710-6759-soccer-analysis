@@ -3,7 +3,20 @@ import zipfile
 from PIL import Image  # pillow
 import torch
 from torchvision import transforms
+from global_model import LABELS_INDEXES_BY_NAME
 
+FOLDERS = [
+    'Free-Kick',
+    'To-Subtitue',
+    'Corner',
+    'Penalty',
+    'Red-Cards',
+    'Tackle',
+    'Yellow-Cards',
+    'Center',
+    'Left',
+    'Right'
+]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,3 +52,32 @@ def get_data(folder, events=[]):
     labels = torch.tensor(labels)
 
     return images, labels
+
+def get_data_for_global_evaluation(root_dir):
+    image_paths, label_indexes = [], []
+
+    for subdir, _, files in os.walk(root_dir):
+        print("subdir")
+        print(subdir)
+
+        if subdir == root_dir:
+            continue  # Ignore le dossier root lui-même
+
+        label = os.path.basename(subdir)
+
+        if label == "Cards":
+            continue
+        elif label in ['Center','Left', 'Right']:
+            label_index = LABELS_INDEXES_BY_NAME["No-highlight"]
+        else:
+            label_index = LABELS_INDEXES_BY_NAME[label]
+
+        for file in files:
+            if file.lower().endswith((".jpg", ".jpeg", ".png")):  # Filtrer les images
+                image_paths.append(os.path.join(subdir, file))
+                label_indexes.append(label_index)
+
+    return image_paths, label_indexes
+
+
+

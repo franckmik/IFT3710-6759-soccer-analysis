@@ -7,3 +7,4 @@ torchvision
 matplotlib
 ipython
 ipykernel
+opencv-python #cv2
