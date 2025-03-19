@@ -94,18 +94,29 @@ class GlobalModel:
                 continue
 
             # === Étape 3: Classification des cartes (Rouge / Jaune) ===
+
+            print(f"Card classes: {CardDetector().classes}")
+
             card_transform = CardDetector().transform
             x = card_transform(image).unsqueeze(0).to(self.device)
 
             outputs, _, _, _, _ = self.card_model(x)
             probabilities = F.softmax(outputs, dim=1)
-            _, predicted = torch.max(probabilities, 1)
+            confidence , predicted = torch.max(probabilities, 1)
 
+            print(f"Fichier: {image_path}")
+            print(f"Indice prédit: {predicted.item()}")
+            print(f"Confiance: {confidence.item():.4f}")
+
+            # Donc l'indice 0 = red , l'indice 1 = jaune
             if predicted.item() == 0:
-                #print("yellow")
-                predictions.append(LABELS_INDEXES_BY_NAME["Yellow-Cards"])
-            else:
-                # print("red")
+                print("red")
                 predictions.append(LABELS_INDEXES_BY_NAME["Red-Cards"])
+            else:  
+                print("yellow")
+                predictions.append(LABELS_INDEXES_BY_NAME["Yellow-Cards"])
 
         return predictions
+
+gm = GlobalModel()
+gm.predict(["dataset/train/yellow_card/Yellow Cards__2__653.jpg"])
