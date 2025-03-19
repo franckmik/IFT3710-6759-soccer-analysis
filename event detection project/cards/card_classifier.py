@@ -361,7 +361,7 @@ class CardDetector:
                 print(f"Erreur lors du chargement du modèle: {e}")
 
         self.model.eval()
-        self.classes = ['Carton Jaune', 'Carton Rouge']
+        self.classes = ['Carton Rouge','Carton Jaune']
 
         # Initialiser Grad-CAM
         self.grad_cam = GradCAM(self.model)
