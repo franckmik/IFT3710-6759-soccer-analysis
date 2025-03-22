@@ -30,12 +30,12 @@ class ColorEmphasisTransform:
         hsv_img[:, :, 1] = np.clip(hsv_img[:, :, 1] * self.saturation_factor, 0, 255)
 
         # Identifier et booster les pixels jaunes (teinte autour de 30)
-        yellow_mask = ((hsv_img[:, :, 0] >= 20) & (hsv_img[:, :, 0] <= 40)) & (hsv_img[:, :, 1] > 100)
+        yellow_mask = ((hsv_img[:, :, 0] >= 20) & (hsv_img[:, :, 0] <= 35)) & (hsv_img[:, :, 1] > 120)
         hsv_img[:, :, 1][yellow_mask] = np.clip(hsv_img[:, :, 1][yellow_mask] * self.yellow_boost, 0, 255)
         hsv_img[:, :, 2][yellow_mask] = np.clip(hsv_img[:, :, 2][yellow_mask] * self.yellow_boost, 0, 255)
 
         # Identifier et booster les pixels rouges (teinte proche de 0 ou 180)
-        red_mask = ((hsv_img[:, :, 0] <= 10) | (hsv_img[:, :, 0] >= 170)) & (hsv_img[:, :, 1] > 100)
+        red_mask = ((hsv_img[:, :, 0] <= 8) | (hsv_img[:, :, 0] >= 175)) & (hsv_img[:, :, 1] > 120)
         hsv_img[:, :, 1][red_mask] = np.clip(hsv_img[:, :, 1][red_mask] * self.red_boost, 0, 255)
         hsv_img[:, :, 2][red_mask] = np.clip(hsv_img[:, :, 2][red_mask] * self.red_boost, 0, 255)
 
@@ -134,6 +134,7 @@ class OSME_MAMC_Module(nn.Module):
 
         # Classifier final combinant toutes les attentions
         self.classifier = nn.Linear(512 * attention_num, 2)
+
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -345,7 +346,7 @@ class CardDetector:
 
         # Définir les transformations d'image avec emphase sur la couleur
         self.transform = transforms.Compose([
-            ColorEmphasisTransform(saturation_factor=1.8, red_boost=1.3, yellow_boost=1.3),
+            ColorEmphasisTransform(saturation_factor=2.0, red_boost=1.6, yellow_boost=1.4),
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])

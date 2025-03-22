@@ -114,7 +114,7 @@ def main():
 
     # Définir les transformations avec accent sur la couleur
     train_transform = transforms.Compose([
-        ColorEmphasisTransform(saturation_factor=1.8, red_boost=1.3, yellow_boost=1.3),
+        ColorEmphasisTransform(saturation_factor=2.0, red_boost=1.6, yellow_boost=1.4),
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),
@@ -124,7 +124,7 @@ def main():
     ])
 
     val_transform = transforms.Compose([
-        ColorEmphasisTransform(saturation_factor=1.8, red_boost=1.3, yellow_boost=1.3),
+        ColorEmphasisTransform(saturation_factor=2.0, red_boost=1.6, yellow_boost=1.4),
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
