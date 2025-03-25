@@ -67,9 +67,6 @@ class GlobalModel:
             #loss = vae_loss(recon_x, x, mu, logvar)
             loss = recon_loss(recon_x, x)
 
-            #print("loss")
-            #print(loss)
-
             if loss >= VAE_PAPER_THRESHOLD:
                 predictions.append(LABELS_INDEXES_BY_NAME["No-highlight"])
                 continue
@@ -80,8 +77,6 @@ class GlobalModel:
             _, predicted_index = torch.max(image_classifier_outputs.data, 1)
             predicted_index = predicted_index.item()  # Conversion en int
 
-            #print("predicted_index")
-            #print(predicted_index)
 
             if predicted_index in [self.image_classifier_model.class_names_dict["Left"],
                                    self.image_classifier_model.class_names_dict["Right"],
@@ -95,7 +90,6 @@ class GlobalModel:
 
             # === Étape 3: Classification des cartes (Rouge / Jaune) ===
 
-
             card_transform = CardDetector().transform
             x = card_transform(image).unsqueeze(0).to(self.device)
 
@@ -103,14 +97,10 @@ class GlobalModel:
             probabilities = F.softmax(outputs, dim=1)
             confidence , predicted = torch.max(probabilities, 1)
 
-
-
             # Donc l'indice 0 = red , l'indice 1 = jaune
             if predicted.item() == 0:
-                #print("red")
                 predictions.append(LABELS_INDEXES_BY_NAME["Red-Cards"])
             else:
-                #print("yellow")
                 predictions.append(LABELS_INDEXES_BY_NAME["Yellow-Cards"])
 
         return predictions

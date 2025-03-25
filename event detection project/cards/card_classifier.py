@@ -102,13 +102,6 @@ class EnhancedColorAttention(nn.Module):
 
 
 class OSME_MAMC_Module(nn.Module):
-    """
-    One-Squeeze Multi-Excitation (OSME) module avec Multi-Attention Multi-Class constraint (MAMC)
-    pour la classification fine-grain des cartons rouges et jaunes.
-
-    Retourner les features d'attention et les cartes pour le calcul de perte et visualisation
-    """
-
     def __init__(self, in_channels, attention_num=2):
         super(OSME_MAMC_Module, self).__init__()
         self.attention_num = attention_num
@@ -135,6 +128,26 @@ class OSME_MAMC_Module(nn.Module):
         # Classifier final combinant toutes les attentions
         self.classifier = nn.Linear(512 * attention_num, 2)
 
+        # Ajustement du biais pour favoriser les cartons rouges (classe 0)
+        # Valeur négative favorise la classe 0 (cartons rouges)
+        with torch.no_grad():
+            self.classifier.bias.data = torch.tensor([-0.3, 0.0], dtype=torch.float32)
+
+        # Initialisation des poids pour donner plus d'importance aux caractéristiques
+        # qui aident à détecter les cartons rouges
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        """
+        Initialise les poids du module pour favoriser la détection des cartons rouges.
+        """
+        # Nous utilisons torch.no_grad() pour modifier les poids sans affecter le graphe de calcul
+        with torch.no_grad():
+            # Donner plus de poids à la première moitié des caractéristiques pour les cartons rouges
+            # (cette hypothèse suppose que ces caractéristiques sont plus importantes pour les cartons rouges)
+            if self.classifier.weight.shape[1] >= 512:
+                # Multiplie les poids des premières 512 caractéristiques pour la classe 0 (cartons rouges)
+                self.classifier.weight.data[0, :512] *= 1.15
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -157,8 +170,15 @@ class OSME_MAMC_Module(nn.Module):
         # Concaténer toutes les sorties d'attention
         combined = torch.cat(attention_outputs, dim=1)
 
+        # Classification finale
         output = self.classifier(combined)
 
+        # Appliquer un facteur correctif pour favoriser davantage la détection des cartons rouges
+        # Ce facteur est appliqué directement sur les logits avant le softmax
+        correction_factor = 0.15
+        # Soustrait une petite valeur de la classe 1 (jaune) pour augmenter la probabilité de prédire rouge
+        if output.size(0) > 0:  # S'assurer qu'il y a au moins un exemple dans le batch
+            output[:, 1] = output[:, 1] - correction_factor
 
         return output, attention_outputs, attention_maps
 
