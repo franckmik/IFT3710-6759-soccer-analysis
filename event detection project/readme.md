@@ -12,7 +12,7 @@
 
 source: https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/
 
-- Choisir l'environement virtuel depuis jupyter notebook
+- Créer le kernel et choisir l'environement virtuel depuis jupyter notebook
 
 source: https://www.geeksforgeeks.org/using-jupyter-notebook-in-virtual-environment/
 

@@ -58,6 +58,8 @@ class GlobalModel:
         """
         predictions = []
 
+        passed_vae = []
+
         for image_path in image_paths:
             image = Image.open(image_path).convert('RGB')
 
@@ -69,7 +71,10 @@ class GlobalModel:
 
             if loss >= VAE_PAPER_THRESHOLD:
                 predictions.append(LABELS_INDEXES_BY_NAME["No-highlight"])
+                passed_vae.append(False)
                 continue
+
+            passed_vae.append(True)
 
             # === Étape 2: Classification d'événement ===
             x = self.classifier_transform(image).unsqueeze(0).to(self.device)
@@ -103,7 +108,7 @@ class GlobalModel:
             else:
                 predictions.append(LABELS_INDEXES_BY_NAME["Yellow-Cards"])
 
-        return predictions
+        return predictions, passed_vae
 
 #gm = GlobalModel()
 #gm.predict(["dataset/train/yellow_card/Yellow Cards__2__653.jpg"])

@@ -1,8 +1,6 @@
 import os
 import torch
 import pandas as pd
-from tqdm import tqdm
-from PIL import Image
 import matplotlib.pyplot as plt
 
 from global_model import GlobalModel, LABELS, LABELS_INDEXES_BY_NAME
@@ -20,6 +18,7 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
 
     # les classes "no-highlight"
     no_highlight_classes = ["Center", "Left", "Right"]
+
 
     for class_name in os.listdir(test_dir):
         class_dir = os.path.join(test_dir, class_name)
@@ -47,11 +46,11 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
                 all_image_paths.append(img_path)
                 all_true_labels.append(label_idx)
 
+
     '''
-    all_image_paths.append(
-        "C:\\Users\\herve\\OneDrive - Universite de Montreal\\Github\\IFT3710-6759-soccer-analysis\\event detection project\\dataset\\test\\Cards\\Cards__1__0.jpg")
-    all_image_paths.append(
-        "C:\\Users\\herve\\OneDrive - Universite de Montreal\\Github\\IFT3710-6759-soccer-analysis\\event detection project\\dataset\\test\\Cards\\Cards__1__1.jpg")
+    all_image_paths.append(f"{os.path.abspath(".")}\\dataset\\test\\Cards\\Cards__1__0.jpg")
+    all_image_paths.append(f"{os.path.abspath(".")}\\dataset\\test\\Cards\\Cards__1__1.jpg")
+
     all_true_labels.append(LABELS.index('Yellow-Cards'))
     all_true_labels.append(LABELS.index('Yellow-Cards'))
     '''
@@ -59,14 +58,22 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
     # Prédiction avec le modèle
     print(f"Évaluation sur {len(all_image_paths)} images...")
 
-    predicted_labels = model.predict(all_image_paths)
+    predicted_labels, passed_vae = model.predict(all_image_paths)
 
-    print("predicted_labels")
-    print(predicted_labels)
 
     true_labels = torch.tensor(all_true_labels)
     pred_labels = torch.tensor(predicted_labels)
 
+
+    passed_vae_tensor = torch.tensor(passed_vae)
+
+    mask = (pred_labels == 7) & (true_labels != 7) & (passed_vae_tensor)
+
+    # Nombre d'éléments satisfaisant la condition
+    count = mask.sum().item()
+
+    print("(pred_labels == No-highlight) & (true_labels != No-highlight) & (passed_vae_tensor)")
+    print(f"Passent VAE count : {count}")
 
     class_results = []
     """"
@@ -106,8 +113,7 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
 
 
     plt.figure(figsize=(6, 5))
-    x_labels = list(LABELS_INDEXES_BY_NAME.values())
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=x_labels, yticklabels=x_labels)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=LABELS, yticklabels=LABELS)
     plt.xlabel('Prédictions')
     plt.ylabel('Vraies valeurs')
     plt.title('Matrice de Confusion')

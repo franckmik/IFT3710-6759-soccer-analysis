@@ -8,3 +8,6 @@ matplotlib
 ipython
 ipykernel
 opencv-python #cv2
+pandas
+scikit-learn
+seaborn
