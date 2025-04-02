@@ -389,7 +389,7 @@ class CardDetector:
 
         return self.classes[predicted.item()], confidence.item()
 
-    def train(self, train_loader, val_loader=None, num_epochs=20, learning_rate=0.001, patience=5, batch_size=16):
+    def train(self, train_loader, val_loader=None, num_epochs=60, learning_rate=0.001, patience=5, batch_size=16):
         """
         Entraîner le modèle de classificateur de carton avec les paramètres du tableau V.
 
@@ -494,7 +494,7 @@ class CardDetector:
                 else:
                     no_improve_epochs += 1
                     print(f"Pas d'amélioration depuis {no_improve_epochs} époques")
-                    if no_improve_epochs >= patience:
+                    if no_improve_epochs >= patience and False:
                         print(f"Early stopping déclenché après {epoch + 1} époques")
                         # Restaurer le meilleur modèle
                         self.model.load_state_dict(best_model_state)
