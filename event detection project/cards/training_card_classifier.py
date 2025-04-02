@@ -97,7 +97,7 @@ def main():
                         default='card_model.pth',
                         help='Chemin pour sauvegarder le modèle entraîné')
     parser.add_argument('--epochs', type=int,
-                        default=25,
+                        default=60,
                         help='Nombre maximum d\'époques d\'entraînement')
     parser.add_argument('--batch_size', type=int,
                         default=16,
