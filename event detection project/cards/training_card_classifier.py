@@ -237,6 +237,5 @@ def main():
     print("\nRapport de classification:")
     print(report)
 
-
 if __name__ == "__main__":
     main()

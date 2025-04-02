@@ -516,41 +516,117 @@ class CardDetector:
 
     def _plot_training_history(self, history, num_epochs):
         """
-        Visualiser l'historique d'entraînement.
-
-        Args:
-            history (dict): Dictionnaire contenant les métriques d'entraînement et de validation
-            num_epochs (int): Nombre d'époques d'entraînement
+        Visualiser l'historique d'entraînement avec un style scientifique moderne.
         """
-        plt.figure(figsize=(12, 5))
+        plt.figure(figsize=(15, 6))
 
-        # Tracer la perte
+        # Use a style that works across Matplotlib versions
+        try:
+            # Try to use seaborn if available
+            import seaborn as sns
+            sns.set_style("whitegrid")
+        except (ImportError, ModuleNotFoundError):
+            # Fallback to a built-in style
+            plt.style.use('default')  # Using 'default' is safe
+            # Add a light grid manually
+            plt.rc('axes', grid=True)
+            plt.rc('grid', linestyle='--', alpha=0.7)
+
+        # Graphique de perte (loss)
         plt.subplot(1, 2, 1)
-        plt.plot(range(1, num_epochs + 1), history['train_loss'], label='Train Loss')
+        epochs = range(1, num_epochs + 1)
+
+        # Tracer les courbes d'apprentissage avec des marqueurs
+        plt.plot(epochs, history['train_loss'], 'ro-', linewidth=1.5, markersize=4, label='Train Loss')
         if 'val_loss' in history and history['val_loss']:
-            plt.plot(range(1, num_epochs + 1), history['val_loss'], label='Val Loss')
-        plt.xlabel('Epoch')
+            plt.plot(epochs, history['val_loss'], 'bo-', linewidth=1.5, markersize=4, label='Val Loss')
+
+        # Configurer l'échelle logarithmique pour l'axe Y comme dans le papier
+        plt.yscale('log')
+
+        # Ajouter une grille et des labels
+        plt.grid(True, alpha=0.3)
+        plt.xlabel('Epoch Number')
         plt.ylabel('Loss')
         plt.title('Training and Validation Loss')
         plt.legend()
-        plt.grid(True)
 
-        # Tracer la précision
+        # Graphique de précision (accuracy)
         plt.subplot(1, 2, 2)
-        plt.plot(range(1, num_epochs + 1), history['train_acc'], label='Train Acc')
+        train_acc = history['train_acc']
+
+        # Forcer les valeurs entre 0 et 1 pour l'échelle logarithmique
+        train_acc_scaled = [acc / 100 for acc in train_acc]
+
+        plt.plot(epochs, train_acc_scaled, 'ro-', linewidth=1.5, markersize=4, label='Train Acc')
         if 'val_acc' in history and history['val_acc']:
-            plt.plot(range(1, num_epochs + 1), history['val_acc'], label='Val Acc')
-        plt.xlabel('Epoch')
-        plt.ylabel('Accuracy (%)')
+            val_acc_scaled = [acc / 100 for acc in history['val_acc']]
+            plt.plot(epochs, val_acc_scaled, 'bo-', linewidth=1.5, markersize=4, label='Val Acc')
+
+
+        try:
+            plt.yscale('symlog', linthresh=0.5)
+        except ValueError:
+            # Fallback for older versions or if symlog has different parameters
+            plt.yscale('log')
+            plt.ylim([0.2, 1.05])
+
+        # Définir les limites de l'axe Y pour ressembler au papier
+        plt.ylim([0.2, 1.05])
+
+        # Ajouter des lignes horizontales pour les niveaux de précision courants
+        for acc in [0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 1.0]:
+            plt.axhline(y=acc, color='gray', alpha=0.3, linestyle='--')
+
+        # Ajouter labels
+        plt.xlabel('Epoch Number')
+        plt.ylabel('Accuracy')
         plt.title('Training and Validation Accuracy')
         plt.legend()
-        plt.grid(True)
 
         plt.tight_layout()
-        plt.savefig('training_history.png')
+        plt.savefig('training_history.png', dpi=300)
         plt.close()
 
-        print("Historique d'entraînement sauvegardé dans 'training_history.png'")
+        print("Historique d'entraînement sauvegardé dans 'training_history.png' et 'training_history.pdf'")
+
+        # Sauvegarder l'historique
+        self._save_run_history('CardClassifier', history, num_epochs)
+
+    def _save_run_history(self, config_name, history, num_epochs, all_results_file='all_training_results.pkl'):
+        """Sauvegarde l'historique d'entraînement pour une analyse comparative future"""
+        import os
+        import pickle
+
+        # Structurer l'historique dans un format cohérent
+        formatted_history = {
+            'accuracy': [acc / 100 for acc in history['train_acc']],  # Convertir en échelle 0-1
+            'loss': history['train_loss'],
+            'val_accuracy': [acc / 100 for acc in history['val_acc']] if 'val_acc' in history and history[
+                'val_acc'] else [],
+            'val_loss': history['val_loss'] if 'val_loss' in history and history['val_loss'] else [],
+            'epochs': num_epochs
+        }
+
+        # Charger les résultats existants si le fichier existe
+        all_results = {}
+        if os.path.exists(all_results_file):
+            with open(all_results_file, 'rb') as f:
+                try:
+                    all_results = pickle.load(f)
+                except Exception as e:
+                    print(f"Erreur lors du chargement des résultats précédents: {e}")
+
+        # Ajouter les résultats de cette exécution
+        all_results[config_name] = formatted_history
+
+        # Sauvegarder dans le fichier
+        try:
+            with open(all_results_file, 'wb') as f:
+                pickle.dump(all_results, f)
+            print(f"Résultats pour '{config_name}' sauvegardés dans '{all_results_file}'")
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde des résultats: {e}")
 
     def save_model(self, path):
         """Sauvegarder le modèle entraîné dans un fichier."""
