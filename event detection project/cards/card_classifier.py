@@ -128,27 +128,6 @@ class OSME_MAMC_Module(nn.Module):
         # Classifier final combinant toutes les attentions
         self.classifier = nn.Linear(512 * attention_num, 2)
 
-        # Ajustement du biais pour favoriser les cartons rouges (classe 0)
-        # Valeur négative favorise la classe 0 (cartons rouges)
-        with torch.no_grad():
-            self.classifier.bias.data = torch.tensor([-0.3, 0.0], dtype=torch.float32)
-
-        # Initialisation des poids pour donner plus d'importance aux caractéristiques
-        # qui aident à détecter les cartons rouges
-        self.initialize_weights()
-
-    def initialize_weights(self):
-        """
-        Initialise les poids du module pour favoriser la détection des cartons rouges.
-        """
-        # Nous utilisons torch.no_grad() pour modifier les poids sans affecter le graphe de calcul
-        with torch.no_grad():
-            # Donner plus de poids à la première moitié des caractéristiques pour les cartons rouges
-            # (cette hypothèse suppose que ces caractéristiques sont plus importantes pour les cartons rouges)
-            if self.classifier.weight.shape[1] >= 512:
-                # Multiplie les poids des premières 512 caractéristiques pour la classe 0 (cartons rouges)
-                self.classifier.weight.data[0, :512] *= 1.15
-
     def forward(self, x):
         batch_size = x.size(0)
         attention_outputs = []
@@ -173,52 +152,7 @@ class OSME_MAMC_Module(nn.Module):
         # Classification finale
         output = self.classifier(combined)
 
-        # Appliquer un facteur correctif pour favoriser davantage la détection des cartons rouges
-        # Ce facteur est appliqué directement sur les logits avant le softmax
-        correction_factor = 0.15
-        # Soustrait une petite valeur de la classe 1 (jaune) pour augmenter la probabilité de prédire rouge
-        if output.size(0) > 0:  # S'assurer qu'il y a au moins un exemple dans le batch
-            output[:, 1] = output[:, 1] - correction_factor
-
         return output, attention_outputs, attention_maps
-
-
-class ColorAwareLoss(nn.Module):
-    """
-    Fonction de perte personnalisée qui prend en compte les caractéristiques de couleur
-    pour mieux distinguer les cartons rouges et jaunes.
-
-    Classe 0 = carton jaune
-    Classe 1 = carton rouge
-    """
-
-    def __init__(self, color_weight=0.5):
-        super(ColorAwareLoss, self).__init__()
-        self.ce_loss = nn.CrossEntropyLoss()
-        self.color_weight = color_weight
-
-    def forward(self, outputs, targets, red_attention, yellow_attention):
-        # Perte de classification standard
-        ce_loss = self.ce_loss(outputs, targets)
-
-        # Perte d'attention couleur
-        batch_size = targets.size(0)
-        color_loss = torch.tensor(0.0, device=outputs.device)
-
-        # Encourager l'attention d'une couleur, décourager l'attention de l'autre
-        for i in range(batch_size):
-            if targets[i] == 0:
-                color_loss += (1 - yellow_attention[i].mean()) + red_attention[i].mean()
-            else:
-
-                color_loss += (1 - red_attention[i].mean()) + yellow_attention[i].mean()
-
-        color_loss /= batch_size
-
-        # Perte combinée
-        total_loss = ce_loss + self.color_weight * color_loss
-
-        return total_loss
 
 
 class CardClassifier(nn.Module):
@@ -249,6 +183,7 @@ class CardClassifier(nn.Module):
     def activations_hook(self, grad):
         self.gradients = grad
 
+    """
     def forward(self, x):
         # Extraire les features de base
         features = self.features(x)
@@ -271,6 +206,34 @@ class CardClassifier(nn.Module):
 
         # Retourner les attentions de couleur pour le calcul de perte
         return outputs, attention_features, attention_maps, red_attention, yellow_attention
+    """
+
+    def forward(self, x):
+        # Extraire les features de base
+        features = self.features(x)
+
+        # Enregistrer les activations pour Grad-CAM
+        self.activations = features
+
+        # Enregistrer le hook pour le gradient
+        if not self.training and torch.is_grad_enabled():
+            try:
+                h = features.register_hook(self.activations_hook)
+            except RuntimeError:
+                pass
+
+        # SKIP color attention and use features directly
+        # enhanced_features, red_attention, yellow_attention = self.color_attention(features)
+
+        # Create dummy attention maps (same shape as the original ones)
+        dummy_red_attention = torch.ones_like(features[:, :1, :, :])
+        dummy_yellow_attention = torch.ones_like(features[:, :1, :, :])
+
+        # Appliquer le module OSME+MAMC directement sur les features originales
+        outputs, attention_features, attention_maps = self.osme_mamc(features)
+
+        # Return exactly the same number and type of values as before
+        return outputs, attention_features, attention_maps, dummy_red_attention, dummy_yellow_attention
 
     def get_activations_gradient(self):
         return self.gradients
@@ -357,17 +320,19 @@ class GradCAM:
 
 class CardDetector:
     """
-    Détecteur de carton amélioré avec une meilleure attention aux couleurs.
+    Détecteur de carton amélioré avec les paramètres conformes au tableau V.
     """
 
     def __init__(self, model_path=None):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = CardClassifier().to(self.device)
 
-        # Définir les transformations d'image avec emphase sur la couleur
+        # Définir les transformations d'image conformes au tableau V
         self.transform = transforms.Compose([
-            ColorEmphasisTransform(saturation_factor=2.0, red_boost=1.6, yellow_boost=1.4),
-            transforms.Resize((224, 224)),
+            transforms.Resize((224, 224)),  # Scale
+            transforms.RandomRotation(10),  # Rotate
+            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),  # Shift
+            transforms.RandomHorizontalFlip(),  # Flip
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -382,7 +347,7 @@ class CardDetector:
                 print(f"Erreur lors du chargement du modèle: {e}")
 
         self.model.eval()
-        self.classes = ['Carton Rouge','Carton Jaune']
+        self.classes = ['Carton Rouge', 'Carton Jaune']
 
         # Initialiser Grad-CAM
         self.grad_cam = GradCAM(self.model)
@@ -424,30 +389,40 @@ class CardDetector:
 
         return self.classes[predicted.item()], confidence.item()
 
-    def train(self, train_loader, val_loader=None, num_epochs=20, learning_rate=0.001, color_weight=0.5):
+    def train(self, train_loader, val_loader=None, num_epochs=20, learning_rate=0.001, patience=5, batch_size=16):
         """
-        Entraîner le modèle de classificateur de carton.
+        Entraîner le modèle de classificateur de carton avec les paramètres du tableau V.
 
         Args:
             train_loader (DataLoader): DataLoader pour les données d'entraînement
             val_loader (DataLoader, optional): DataLoader pour les données de validation
-            num_epochs (int): Nombre d'époques d'entraînement
+            num_epochs (int): Nombre maximum d'époques d'entraînement
             learning_rate (float): Taux d'apprentissage pour l'optimiseur
-            color_weight (float): Poids de la perte de couleur dans la fonction de perte totale
+            patience (int): Nombre d'époques à attendre sans amélioration avant d'arrêter l'entraînement
+            batch_size (int): Taille du batch (16 selon tableau V)
         """
+        # Vérifier que la taille du batch est correcte
+        if train_loader.batch_size != batch_size:
+            print(f"Attention: La taille du batch dans le train_loader ({train_loader.batch_size}) "
+                  f"ne correspond pas à la taille spécifiée ({batch_size})")
+
         # Mettre le modèle en mode entraînement
         self.model.train()
 
-        # Définir la fonction de perte et l'optimiseur
-        color_loss = ColorAwareLoss(color_weight=color_weight)
+        # Définir la fonction de perte standard (categorical cross-entropy) selon tableau V
+        criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
 
         # Historique d'entraînement
         history = {
             'train_loss': [], 'train_acc': [],
             'val_loss': [], 'val_acc': []
         }
+
+        # Variables pour early stopping
+        best_val_loss = float('inf')
+        no_improve_epochs = 0
+        best_model_state = None
 
         # Boucle d'entraînement
         for epoch in range(num_epochs):
@@ -462,10 +437,10 @@ class CardDetector:
                 optimizer.zero_grad()
 
                 # Forward pass
-                outputs, attention_features, _, red_attention, yellow_attention = self.model(inputs)
+                outputs, _, _, _, _ = self.model(inputs)
 
-                # Calcul de la perte avec attention couleur
-                loss = color_loss(outputs, labels, red_attention, yellow_attention)
+                # Calcul de la perte standard (categorical cross-entropy)
+                loss = criterion(outputs, labels)
 
                 # Backward pass et optimisation
                 loss.backward()
@@ -493,8 +468,8 @@ class CardDetector:
                 with torch.no_grad():
                     for inputs, labels in val_loader:
                         inputs, labels = inputs.to(self.device), labels.to(self.device)
-                        outputs, attention_features, _, red_attention, yellow_attention = self.model(inputs)
-                        loss = color_loss(outputs, labels, red_attention, yellow_attention)
+                        outputs, _, _, _, _ = self.model(inputs)
+                        loss = criterion(outputs, labels)
 
                         val_loss += loss.item()
                         _, predicted = torch.max(outputs.data, 1)
@@ -507,18 +482,35 @@ class CardDetector:
                 history['val_loss'].append(val_loss)
                 history['val_acc'].append(val_acc)
 
-                # Ajuster le learning rate
-                scheduler.step(val_loss)
-
                 print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, '
                       f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+
+                # Early stopping
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    no_improve_epochs = 0
+                    best_model_state = self.model.state_dict().copy()
+                    print(f"Nouveau meilleur modèle sauvegardé avec perte de validation: {val_loss:.4f}")
+                else:
+                    no_improve_epochs += 1
+                    print(f"Pas d'amélioration depuis {no_improve_epochs} époques")
+                    if no_improve_epochs >= patience:
+                        print(f"Early stopping déclenché après {epoch + 1} époques")
+                        # Restaurer le meilleur modèle
+                        self.model.load_state_dict(best_model_state)
+                        break
 
                 self.model.train()
             else:
                 print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
 
+        # Si l'entraînement s'est terminé sans early stopping, charger le meilleur modèle
+        if val_loader and best_model_state and no_improve_epochs < patience:
+            self.model.load_state_dict(best_model_state)
+            print("Entraînement terminé. Chargement du meilleur modèle.")
+
         # Tracer l'historique d'entraînement
-        self._plot_training_history(history, num_epochs)
+        self._plot_training_history(history, epoch + 1)
 
         return history
 
@@ -559,78 +551,6 @@ class CardDetector:
         plt.close()
 
         print("Historique d'entraînement sauvegardé dans 'training_history.png'")
-
-    def visualize_class_predictions(self, data_loader, num_samples=5, save_path="class_predictions.png"):
-        """
-        Visualiser les prédictions du modèle sur quelques échantillons du dataset.
-
-        Args:
-            data_loader (DataLoader): DataLoader contenant les données
-            num_samples (int): Nombre d'échantillons à visualiser
-            save_path (str): Chemin pour sauvegarder la visualisation
-        """
-        self.model.eval()
-
-        # Obtenir quelques échantillons
-        images, labels = [], []
-        class_counts = {0: 0, 1: 0}
-
-        for batch_images, batch_labels in data_loader:
-            for i in range(len(batch_labels)):
-                label = batch_labels[i].item()
-                if label in class_counts and class_counts[label] < num_samples:
-                    images.append(batch_images[i])
-                    labels.append(batch_labels[i])
-                    class_counts[label] += 1
-
-            if all(count >= num_samples for count in class_counts.values()):
-                break
-
-        # Convertir en tensors
-        if not images:
-            print("Aucun exemple trouvé pour la visualisation")
-            return
-
-        images = torch.stack(images).to(self.device)
-        labels = torch.stack(labels).to(self.device)
-
-        # Obtenir les prédictions
-        with torch.no_grad():
-            outputs, _, _, red_attention, yellow_attention = self.model(images)
-            probabilities = F.softmax(outputs, dim=1)
-            _, predictions = torch.max(probabilities, 1)
-
-        # Visualiser
-        plt.figure(figsize=(15, num_samples * 3))
-        for i in range(len(images)):
-            # Convertir l'image en numpy array
-            img = images[i].cpu().permute(1, 2, 0).numpy()
-            img = img * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
-            img = np.clip(img, 0, 1)
-
-            # Générer la heatmap Grad-CAM
-            with torch.set_grad_enabled(True):
-                cam = self.grad_cam.generate_cam(images[i].unsqueeze(0), predictions[i].item())
-
-            cam_img = self.grad_cam.overlay_heatmap(cam, (img * 255).astype(np.uint8))
-
-            # Afficher l'image originale
-            plt.subplot(len(images), 2, 2 * i + 1)
-            plt.imshow(img)
-            plt.title(f"Vraie: {self.classes[labels[i]]}\nPrédiction: {self.classes[predictions[i]]}")
-            plt.axis('off')
-
-            # Afficher la visualisation Grad-CAM
-            plt.subplot(len(images), 2, 2 * i + 2)
-            plt.imshow(cam_img)
-            plt.title("Grad-CAM")
-            plt.axis('off')
-
-        plt.tight_layout()
-        plt.savefig(save_path)
-        plt.close()
-
-        print(f"Visualisation des prédictions sauvegardée dans '{save_path}'")
 
     def save_model(self, path):
         """Sauvegarder le modèle entraîné dans un fichier."""

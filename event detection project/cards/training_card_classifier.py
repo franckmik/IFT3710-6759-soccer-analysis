@@ -2,12 +2,10 @@ import argparse
 import torch
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
-import torch.nn.functional as F
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from card_classifier import CardDetector, ColorEmphasisTransform
-import cv2
+from card_classifier import CardDetector
 from sklearn.metrics import confusion_matrix, classification_report
 import seaborn as sns
 
@@ -73,22 +71,9 @@ def visualize_dataset_samples(dataset_dir, class_names, num_samples=5, save_path
             if i >= num_samples:
                 continue
 
-            img_np = img.permute(1, 2, 0).numpy()
-
-            # Appliquer la transformation d'emphase de couleur
-            pil_img = transforms.ToPILImage()(img)
-            enhanced_img = ColorEmphasisTransform()(pil_img)
-            enhanced_np = np.array(enhanced_img) / 255.0
-
-            # Afficher côte à côte original et accentué
-            plt.subplot(len(class_names), num_samples * 2, class_idx * num_samples * 2 + i * 2 + 1)
-            plt.imshow(img_np)
-            plt.title(f"{class_names[class_idx]}\nOriginal")
-            plt.axis('off')
-
-            plt.subplot(len(class_names), num_samples * 2, class_idx * num_samples * 2 + i * 2 + 2)
-            plt.imshow(enhanced_np)
-            plt.title(f"{class_names[class_idx]}\nAccentué")
+            plt.subplot(len(class_names), num_samples, class_idx * num_samples + i + 1)
+            plt.imshow(img.permute(1, 2, 0).numpy())
+            plt.title(f"{class_names[class_idx]}")
             plt.axis('off')
 
     plt.tight_layout()
@@ -99,33 +84,49 @@ def visualize_dataset_samples(dataset_dir, class_names, num_samples=5, save_path
 
 
 def main():
+    chemin_absolu = "C:\\Users\\herve\\OneDrive - Universite de Montreal\\Github\\IFT3710-6759-soccer-analysis\\event detection project\\dataset\\"
+
     parser = argparse.ArgumentParser(description='Entraîner le Détecteur de Couleur de Carton de Football')
-    parser.add_argument('data_dir', type=str, help='Chemin vers le répertoire de données d\'entraînement')
-    parser.add_argument('--val_dir', type=str, default=None, help='Chemin vers le répertoire de données de validation')
-    parser.add_argument('--output', type=str, help='Chemin pour sauvegarder le modèle entraîné',
-                        default='card_model.pth')
-    parser.add_argument('--epochs', type=int, help='Nombre d\'époques d\'entraînement', default=25)
-    parser.add_argument('--batch_size', type=int, help='Taille de batch pour l\'entraînement', default=16)
-    parser.add_argument('--lr', type=float, help='Taux d\'apprentissage', default=0.001)
-    parser.add_argument('--color_weight', type=float, help='Poids de la perte de couleur', default=0.7)
-    parser.add_argument('--val_split', type=float, help='Ratio de validation si pas de val_dir', default=0.2)
+    parser.add_argument('--data_dir', type=str,
+                        default=chemin_absolu + "train",
+                        help='Chemin vers le répertoire de données d\'entraînement')
+    parser.add_argument('--val_dir', type=str,
+                        default=chemin_absolu + "validation",
+                        help='Chemin vers le répertoire de données de validation')
+    parser.add_argument('--output', type=str,
+                        default='card_model.pth',
+                        help='Chemin pour sauvegarder le modèle entraîné')
+    parser.add_argument('--epochs', type=int,
+                        default=25,
+                        help='Nombre maximum d\'époques d\'entraînement')
+    parser.add_argument('--batch_size', type=int,
+                        default=16,
+                        help='Taille de batch pour l\'entraînement (16 selon tableau V)')
+    parser.add_argument('--lr', type=float,
+                        default=0.001,
+                        help='Taux d\'apprentissage')
+    parser.add_argument('--patience', type=int,
+                        default=5,
+                        help='Patience pour early stopping')
+    parser.add_argument('--val_split', type=float,
+                        default=0.2,
+                        help='Ratio de validation si pas de val_dir')
+
 
     args = parser.parse_args()
 
-    # Définir les transformations avec accent sur la couleur
+    # Définir les transformations conformes au tableau V
     train_transform = transforms.Compose([
-        ColorEmphasisTransform(saturation_factor=2.0, red_boost=1.6, yellow_boost=1.4),
-        transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(10),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.3, hue=0.05),
+        transforms.Resize((224, 224)),  # Scale
+        transforms.RandomRotation(10),  # Rotate
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),  # Shift
+        transforms.RandomHorizontalFlip(),  # Flip
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     val_transform = transforms.Compose([
-        ColorEmphasisTransform(saturation_factor=2.0, red_boost=1.6, yellow_boost=1.4),
-        transforms.Resize((224, 224)),
+        transforms.Resize((224, 224)),  # Scale only for validation
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -179,14 +180,14 @@ def main():
         # Créer les DataLoaders
         train_loader = DataLoader(
             train_dataset,
-            batch_size=args.batch_size,
+            batch_size=args.batch_size,  # 16 selon tableau V
             shuffle=True,
             num_workers=4
         )
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=args.batch_size,
+            batch_size=args.batch_size,  # 16 selon tableau V
             shuffle=False,
             num_workers=4
         )
@@ -197,14 +198,15 @@ def main():
     # Initialiser le détecteur
     detector = CardDetector()
 
-    # Entraîner le modèle
+    # Entraîner le modèle avec early stopping
     print("Démarrage de l'entraînement...")
     history = detector.train(
         train_loader,
         val_loader=val_loader,
         num_epochs=args.epochs,
         learning_rate=args.lr,
-        color_weight=args.color_weight
+        patience=args.patience,
+        batch_size=args.batch_size
     )
 
     # Sauvegarder le modèle entraîné
@@ -234,10 +236,6 @@ def main():
     report = classification_report(all_labels, all_preds, target_names=class_names)
     print("\nRapport de classification:")
     print(report)
-
-    # Visualiser quelques exemples de prédictions
-    detector.visualize_class_predictions(val_loader, num_samples=5, save_path="class_predictions.png")
-
 
 
 if __name__ == "__main__":

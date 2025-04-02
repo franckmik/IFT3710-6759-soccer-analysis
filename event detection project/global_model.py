@@ -32,7 +32,7 @@ class GlobalModel:
         self.vae_model.eval()
 
         self.card_model = CardClassifier().to(device)
-        self.card_model.load_state_dict(torch.load('cards/card_model_color_enhanced.pth', map_location=device))
+        self.card_model.load_state_dict(torch.load('cards/card_model.pth', map_location=device))
         self.card_model.eval()
 
         self.image_classifier_model = SoccerEventClassifier().to(device)
