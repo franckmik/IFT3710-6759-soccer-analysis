@@ -3,11 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from vae_model.vae import VAE, vae_loss, recon_loss
 from cards.card_classifier import CardClassifier, CardDetector
-from my_module import SoccerEventClassifier
+from event_classification.my_module import SoccerEventClassifier
 from PIL import Image
 from torchvision import transforms
 
 VAE_PAPER_THRESHOLD = 328
+IMAGE_CLASSIFIER_THRESHOLD = 0.9
 
 LABELS = [
     'Free-Kick',
@@ -36,7 +37,12 @@ class GlobalModel:
         self.card_model.eval()
 
         self.image_classifier_model = SoccerEventClassifier().to(device)
-        self.image_classifier_model.load_state_dict(torch.load('model_event_classifier.pth', map_location=device))
+
+        self.image_classifier_model.class_names = sorted(self.image_classifier_model.class_names)
+
+        self.image_classifier_class_names_dict = {key: i for i, key in enumerate(self.image_classifier_model.class_names)}
+
+        self.image_classifier_model.load_state_dict(torch.load('event_classification/classification_model_v2.pth', map_location=device))
         self.image_classifier_model.eval()
 
         # Transformations des images
@@ -45,7 +51,7 @@ class GlobalModel:
             transforms.ToTensor(),
         ])
 
-        self.classifier_transform = transforms.Compose([
+        self.image_classifier_transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
@@ -58,7 +64,7 @@ class GlobalModel:
         """
         predictions = []
 
-        passed_vae = []
+        #passed_vae = []
 
         for image_path in image_paths:
             image = Image.open(image_path).convert('RGB')
@@ -71,25 +77,27 @@ class GlobalModel:
 
             if loss >= VAE_PAPER_THRESHOLD:
                 predictions.append(LABELS_INDEXES_BY_NAME["No-highlight"])
-                passed_vae.append(False)
+                #passed_vae.append(False)
                 continue
 
-            passed_vae.append(True)
+            #passed_vae.append(True)
 
             # === Étape 2: Classification d'événement ===
-            x = self.classifier_transform(image).unsqueeze(0).to(self.device)
+            x = self.image_classifier_transform(image).unsqueeze(0).to(self.device)
             image_classifier_outputs = self.image_classifier_model(x)
-            _, predicted_index = torch.max(image_classifier_outputs.data, 1)
+            probabilities = F.softmax(image_classifier_outputs, dim=1)
+            confidence, predicted_index = torch.max(probabilities, 1)
+
             predicted_index = predicted_index.item()  # Conversion en int
 
 
-            if predicted_index in [self.image_classifier_model.class_names_dict["Left"],
-                                   self.image_classifier_model.class_names_dict["Right"],
-                                   self.image_classifier_model.class_names_dict["Center"]]:
+            if confidence < IMAGE_CLASSIFIER_THRESHOLD or predicted_index in [self.image_classifier_class_names_dict["Left"],
+                                   self.image_classifier_class_names_dict["Right"],
+                                   self.image_classifier_class_names_dict["Center"]]:
                 predictions.append(LABELS_INDEXES_BY_NAME["No-highlight"])
                 continue
 
-            if predicted_index != self.image_classifier_model.class_names_dict["Cards"]:
+            if predicted_index != self.image_classifier_class_names_dict["Cards"]:
                 predictions.append(LABELS_INDEXES_BY_NAME[self.image_classifier_model.class_names[predicted_index]])
                 continue
 
@@ -100,7 +108,7 @@ class GlobalModel:
 
             outputs, _, _, _, _ = self.card_model(x)
             probabilities = F.softmax(outputs, dim=1)
-            confidence , predicted = torch.max(probabilities, 1)
+            confidence, predicted = torch.max(probabilities, 1)
 
             # Donc l'indice 0 = red , l'indice 1 = jaune
             if predicted.item() == 0:
@@ -108,7 +116,8 @@ class GlobalModel:
             else:
                 predictions.append(LABELS_INDEXES_BY_NAME["Yellow-Cards"])
 
-        return predictions, passed_vae
+        # return predictions, passed_vae
+        return predictions
 
 #gm = GlobalModel()
 #gm.predict(["dataset/train/yellow_card/Yellow Cards__2__653.jpg"])

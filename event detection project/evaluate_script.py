@@ -19,7 +19,6 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
     # les classes "no-highlight"
     no_highlight_classes = ["Center", "Left", "Right"]
 
-
     for class_name in os.listdir(test_dir):
         class_dir = os.path.join(test_dir, class_name)
         if not os.path.isdir(class_dir):
@@ -58,13 +57,13 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
     # Prédiction avec le modèle
     print(f"Évaluation sur {len(all_image_paths)} images...")
 
-    predicted_labels, passed_vae = model.predict(all_image_paths)
+    predicted_labels = model.predict(all_image_paths)
 
 
     true_labels = torch.tensor(all_true_labels)
     pred_labels = torch.tensor(predicted_labels)
 
-
+    '''
     passed_vae_tensor = torch.tensor(passed_vae)
 
     mask = (pred_labels == 7) & (true_labels != 7) & (passed_vae_tensor)
@@ -74,26 +73,38 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
 
     print("(pred_labels == No-highlight) & (true_labels != No-highlight) & (passed_vae_tensor)")
     print(f"Passent VAE count : {count}")
+    '''
 
     class_results = []
-    """"
+
     for class_idx, class_name in enumerate(LABELS):
         if class_name == "No-highlight":
             continue
 
-        accuracy = accuracy_score(true_labels, pred_labels)
-        f1 = f1_score(true_labels, pred_labels, average='weighted')  # 'weighted' prend en compte les déséquilibres de classe
-        recall = recall_score(true_labels, pred_labels, average='weighted')
+        # Calculer la précision pour cette classe (true positives / predicted positives)
+        true_positives = ((pred_labels == class_idx) & (true_labels == class_idx)).sum().item()
+        predicted_positives = (pred_labels == class_idx).sum().item()
+
+        precision = true_positives / predicted_positives if predicted_positives > 0 else 0
+
+        # Calculer le rappel pour cette classe (true positives / actual positives)
+        actual_positives = (true_labels == class_idx).sum().item()
+        recall = true_positives / actual_positives if actual_positives > 0 else 0
+
+        # Calculer le F1-score (2 * precision * recall / (precision + recall))
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
 
         class_results.append({
             'class': class_name,
-            'precision': accuracy,
+            'precision': precision,
             'recall': recall,
             'f1_score': f1
         })
 
-        print(f"{class_name} - Précision: {accuracy:.4f}, Rappel: {recall:.4f}, F1: {f1:.4f}")
-    """
+        print(f"{class_name} - Précision: {precision:.4f}, Rappel: {recall:.4f}, F1: {f1:.4f}")
+
+
+    '''
     print('true_labels')
     print(true_labels)
     print('predicted_labels')
@@ -108,10 +119,11 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
         'recall': recall,
         'f1_score': f1
     })
+    '''
 
     cm = cc(true_labels, pred_labels)
 
-
+    # crée l'image de la matrice de confusion
     plt.figure(figsize=(6, 5))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=LABELS, yticklabels=LABELS)
     plt.xlabel('Prédictions')
@@ -123,7 +135,7 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
     results_df = pd.DataFrame(class_results)
     results_df.to_csv(output_file, index=False)
 
-
+    '''
     print("Matrice de confusion:")
     num_classes = len(LABELS)
     confusion_matrix = torch.zeros(num_classes, num_classes, dtype=torch.long)
@@ -135,6 +147,7 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
         'class_results': class_results,
         'confusion_matrix': confusion_matrix
     }
+    '''
 
 
 if __name__ == "__main__":
