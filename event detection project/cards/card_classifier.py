@@ -452,6 +452,11 @@ class CardDetector:
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
             train_loss = running_loss / len(train_loader)
             train_acc = 100 * correct / total
 
