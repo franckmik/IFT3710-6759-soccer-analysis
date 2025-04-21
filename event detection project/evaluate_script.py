@@ -17,7 +17,7 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
     all_true_labels = []
 
     # les classes "no-highlight"
-    no_highlight_classes = ["Center", "Left", "Right"]
+    no_highlight_classes = ["Center", "Left", "Right", "Other-Soccer-Events"]
 
     for class_name in os.listdir(test_dir):
         class_dir = os.path.join(test_dir, class_name)

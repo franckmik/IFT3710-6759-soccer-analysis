@@ -18,6 +18,8 @@ LABELS = [
     'Red-Cards',
     'Tackle',
     'Yellow-Cards',
+    # 'Other-Soccer-Events',
+    # 'Not-soccer-related'
     'No-highlight'
 ]
 
@@ -42,7 +44,7 @@ class GlobalModel:
 
         self.image_classifier_class_names_dict = {key: i for i, key in enumerate(self.image_classifier_model.class_names)}
 
-        self.image_classifier_model.load_state_dict(torch.load('event_classification/classification_model_v2.pth', map_location=device))
+        self.image_classifier_model.load_state_dict(torch.load('event_classification/models/best_model.pth', map_location=device))
         self.image_classifier_model.eval()
 
         # Transformations des images
@@ -51,12 +53,18 @@ class GlobalModel:
             transforms.ToTensor(),
         ])
 
+        self.card_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
         self.image_classifier_transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[.485, .456, .406], std=[.229, .224, .225])
         ])
+
 
     def predict(self, image_paths):
         """
@@ -90,10 +98,17 @@ class GlobalModel:
 
             predicted_index = predicted_index.item()  # Conversion en int
 
-
+            '''
             if confidence < IMAGE_CLASSIFIER_THRESHOLD or predicted_index in [self.image_classifier_class_names_dict["Left"],
                                    self.image_classifier_class_names_dict["Right"],
                                    self.image_classifier_class_names_dict["Center"]]:
+                predictions.append(LABELS_INDEXES_BY_NAME["No-highlight"])
+                continue
+            '''
+
+            if predicted_index in [self.image_classifier_class_names_dict["Left"],
+                                    self.image_classifier_class_names_dict["Right"],
+                                    self.image_classifier_class_names_dict["Center"]]:
                 predictions.append(LABELS_INDEXES_BY_NAME["No-highlight"])
                 continue
 
@@ -103,8 +118,8 @@ class GlobalModel:
 
             # === Étape 3: Classification des cartes (Rouge / Jaune) ===
 
-            card_transform = CardDetector().transform
-            x = card_transform(image).unsqueeze(0).to(self.device)
+            #card_transform = CardDetector().transform
+            x = self.card_transform(image).unsqueeze(0).to(self.device)
 
             outputs, _, _, _, _ = self.card_model(x)
             probabilities = F.softmax(outputs, dim=1)
