@@ -443,4 +443,4 @@ if __name__ == "__main__":
 
     # Évaluer le modèle
     #results = evaluate_card_model(MODEL_PATH, VAL_DIR, paper_accuracy=PAPER_ACCURACY)
-     n  test_results = evaluate_on_test_set(MODEL_PATH, TEST_DIR,paper_accuracy=PAPER_ACCURACY)
+    test_results = evaluate_on_test_set(MODEL_PATH, TEST_DIR,paper_accuracy=PAPER_ACCURACY)

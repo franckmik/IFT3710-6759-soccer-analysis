@@ -88,7 +88,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Entraîner le Détecteur de Couleur de Carton de Football')
     parser.add_argument('--data_dir', type=str,
-                        default=chemin_absolu + "augmented_train",
+                        default=chemin_absolu + "train",
                         help='Chemin vers le répertoire de données d\'entraînement')
     parser.add_argument('--val_dir', type=str,
                         default=chemin_absolu + "validation",
@@ -117,7 +117,10 @@ def main():
 
     # Définir les transformations conformes au tableau V
     train_transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((224, 224)),  # Scale
+        transforms.RandomRotation(10),  # Rotate
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),  # Shift
+        transforms.RandomHorizontalFlip(),  # Flip
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -174,22 +177,19 @@ def main():
             )
             print(f"Chargement des données de validation depuis {args.val_dir}")
 
-
+        # Créer les DataLoaders
         train_loader = DataLoader(
             train_dataset,
             batch_size=args.batch_size,  # 16 selon tableau V
             shuffle=True,
-            num_workers=0,  # Disable multiprocessing to avoid shared memory issues
-            pin_memory=True,  # Helps with GPU training
-            persistent_workers=False  # Not needed when num_workers=0
+            num_workers=4
         )
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=args.batch_size,
+            batch_size=args.batch_size,  # 16 selon tableau V
             shuffle=False,
-            num_workers=0,  # Disable multiprocessing
-            pin_memory=True
+            num_workers=4
         )
     except Exception as e:
         print(f"Erreur lors du chargement des données: {e}")
