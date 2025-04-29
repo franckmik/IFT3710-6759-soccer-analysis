@@ -78,9 +78,6 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
     class_results = []
 
     for class_idx, class_name in enumerate(LABELS):
-        if class_name == "No-highlight":
-            continue
-
         # Calculer la précision pour cette classe (true positives / predicted positives)
         true_positives = ((pred_labels == class_idx) & (true_labels == class_idx)).sum().item()
         predicted_positives = (pred_labels == class_idx).sum().item()
@@ -103,6 +100,9 @@ def evaluate_on_test_dataset(model, test_dir, output_file="evaluation_results.cs
 
         print(f"{class_name} - Précision: {precision:.4f}, Rappel: {recall:.4f}, F1: {f1:.4f}")
 
+    accuracy = accuracy_score(true_labels, pred_labels)
+
+    print(f"Global model accuracy: {accuracy}")
 
     '''
     print('true_labels')
