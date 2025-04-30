@@ -11,14 +11,7 @@ import seaborn as sns
 
 
 def plot_confusion_matrix(cm, class_names, save_path="confusion_matrix.png"):
-    """
-    Visualiser la matrice de confusion.
 
-    Args:
-        cm (array): Matrice de confusion
-        class_names (list): Noms des classes
-        save_path (str): Chemin pour sauvegarder l'image
-    """
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
     plt.xlabel('Prédiction')
@@ -32,16 +25,7 @@ def plot_confusion_matrix(cm, class_names, save_path="confusion_matrix.png"):
 
 
 def visualize_dataset_samples(dataset_dir, class_names, num_samples=5, save_path="dataset_samples.png"):
-    """
-    Visualiser des échantillons du dataset pour chaque classe.
 
-    Args:
-        dataset_dir (str): Chemin vers le répertoire du dataset
-        class_names (list): Noms des classes
-        num_samples (int): Nombre d'échantillons par classe à visualiser
-        save_path (str): Chemin pour sauvegarder l'image
-    """
-    # Transformation minimale qui convertit les images en tensors
     basic_transform = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor()
@@ -51,10 +35,8 @@ def visualize_dataset_samples(dataset_dir, class_names, num_samples=5, save_path
 
     loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-    # Séparer les images par classe
     class_samples = {i: [] for i in range(len(class_names))}
 
-    # Collecter des échantillons pour chaque classe
     for images, labels in loader:
         for img, lbl in zip(images, labels):
             if len(class_samples[lbl.item()]) < num_samples:
@@ -63,7 +45,6 @@ def visualize_dataset_samples(dataset_dir, class_names, num_samples=5, save_path
         if all(len(samples) >= num_samples for samples in class_samples.values()):
             break
 
-    # Visualiser
     plt.figure(figsize=(num_samples * 3, len(class_names) * 3))
 
     for class_idx, samples in class_samples.items():
@@ -84,24 +65,25 @@ def visualize_dataset_samples(dataset_dir, class_names, num_samples=5, save_path
 
 
 def main():
-    chemin_absolu = "C:\\Users\\herve\\OneDrive - Universite de Montreal\\Github\\IFT3710-6759-soccer-analysis\\event detection project\\dataset\\"
+
+    from absolute_path import get_file_path
 
     parser = argparse.ArgumentParser(description='Entraîner le Détecteur de Couleur de Carton de Football')
     parser.add_argument('--data_dir', type=str,
-                        default=chemin_absolu + "train",
+                        default= str(get_file_path("event detection project\\dataset\\train")),
                         help='Chemin vers le répertoire de données d\'entraînement')
     parser.add_argument('--val_dir', type=str,
-                        default=chemin_absolu + "validation",
+                        default=str(get_file_path("event detection project\\dataset\\validation")),
                         help='Chemin vers le répertoire de données de validation')
     parser.add_argument('--output', type=str,
-                        default='card_model.pth',
+                        default=str(get_file_path("cards\\card_model.pth")),
                         help='Chemin pour sauvegarder le modèle entraîné')
     parser.add_argument('--epochs', type=int,
                         default=60,
                         help='Nombre maximum d\'époques d\'entraînement')
     parser.add_argument('--batch_size', type=int,
                         default=16,
-                        help='Taille de batch pour l\'entraînement (16 selon tableau V)')
+                        help='Taille de batch pour l\'entraînement')
     parser.add_argument('--lr', type=float,
                         default=0.001,
                         help='Taux d\'apprentissage')
@@ -115,48 +97,44 @@ def main():
 
     args = parser.parse_args()
 
-    # Définir les transformations conformes au tableau V
+
     train_transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # Scale
-        transforms.RandomRotation(10),  # Rotate
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),  # Shift
-        transforms.RandomHorizontalFlip(),  # Flip
+        transforms.Resize((224, 224)),
+        transforms.RandomRotation(10),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     val_transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # Scale only for validation
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Vérifier l'existence du répertoire de données
     if not os.path.exists(args.data_dir):
         raise ValueError(f"Le répertoire de données {args.data_dir} n'existe pas")
 
-    # Charger les datasets
+
     print(f"Chargement des données d'entraînement depuis {args.data_dir}")
     try:
         dataset = datasets.ImageFolder(
             args.data_dir,
-            transform=None  # Pas de transformation pour visualisation
+            transform=None
         )
 
-        # Vérifier que nous avons les classes attendues
         class_names = dataset.classes
         print(f"Classes trouvées: {class_names}")
 
-        # Visualiser quelques échantillons du dataset
         visualize_dataset_samples(args.data_dir, class_names, save_path="dataset_samples.png")
 
-        # Maintenant appliquer les transformations
         train_dataset = datasets.ImageFolder(
             args.data_dir,
             transform=train_transform
         )
 
-        # Si pas de répertoire de validation, diviser le dataset d'entraînement
+
         if args.val_dir is None:
             val_size = int(len(train_dataset) * args.val_split)
             train_size = len(train_dataset) - val_size
@@ -177,17 +155,17 @@ def main():
             )
             print(f"Chargement des données de validation depuis {args.val_dir}")
 
-        # Créer les DataLoaders
+
         train_loader = DataLoader(
             train_dataset,
-            batch_size=args.batch_size,  # 16 selon tableau V
+            batch_size=args.batch_size,
             shuffle=True,
             num_workers=4
         )
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=args.batch_size,  # 16 selon tableau V
+            batch_size=args.batch_size,
             shuffle=False,
             num_workers=4
         )
@@ -195,10 +173,8 @@ def main():
         print(f"Erreur lors du chargement des données: {e}")
         return
 
-    # Initialiser le détecteur
     detector = CardDetector()
 
-    # Entraîner le modèle avec early stopping
     print("Démarrage de l'entraînement...")
     history = detector.train(
         train_loader,
@@ -209,13 +185,11 @@ def main():
         batch_size=args.batch_size
     )
 
-    # Sauvegarder le modèle entraîné
+
     detector.save_model(args.output)
 
-    # Évaluer le modèle sur l'ensemble de validation
     detector.model.eval()
 
-    # Calculer les métriques
     all_preds = []
     all_labels = []
 
@@ -228,11 +202,10 @@ def main():
             all_preds.extend(predicted.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
 
-    # Calculer et afficher la matrice de confusion
+
     cm = confusion_matrix(all_labels, all_preds)
     plot_confusion_matrix(cm, class_names, save_path="confusion_matrix.png")
 
-    # Afficher le rapport de classification
     report = classification_report(all_labels, all_preds, target_names=class_names)
     print("\nRapport de classification:")
     print(report)
