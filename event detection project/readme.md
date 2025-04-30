@@ -26,6 +26,15 @@ avant de rouler la commande de l'article:
 
 `ipython kernel install --user --name=.venv`
 
+# Entrainement des modèles
+
+## VAE
+
+## Modèle de classification des evenements
+
+## Modèle des cartons
+
+# Evaluation du modèle global
 
 
 
