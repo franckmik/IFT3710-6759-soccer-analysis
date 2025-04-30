@@ -122,7 +122,6 @@ class SoccerEventDataset(Dataset):
 ##############################################################################
 ##############################################################################
 ##############################################################################
-
 class SoccerEventClassifier(nn.Module):
   """
   - classification model as a class 
@@ -154,139 +153,233 @@ class SoccerEventClassifier(nn.Module):
         nn.BatchNorm1d(512),
         nn.ReLU(),
         nn.Dropout(.3),
+        
 
         #second dense Layer
         nn.Linear(512,512),
         nn.BatchNorm1d(512),
         nn.ReLU(),
         nn.Dropout(.3),
+
         #final classification layer
         nn.Linear(512,len(self.class_names))
     )
   def forward(self,x):
     return self.backbone(x)
-
+  
+  ##############################################################################
 ##############################################################################
 ##############################################################################
-##############################################################################
 
 
 
-
-def train_model(model,batch_size,num_epochs, learning_rate,device,
-                train_loader,val_loader):
+def train_model(
+    model,
+    batch_size,
+    num_epochs,
+    learning_rate,
+    device,
+    train_loader,
+    val_loader,
+    loss_type='cross_entropy',
+    class_weights=torch.tensor([1.0, 1.0, 1.0, 2.0, 1.5, 1.0, 1.5, 1.0, 1.0]),
+    use_scheduler=True,
+    clip_grad=1.0,
+    early_stop_patience=5,
+    use_mixup=True,
+    mixup_alpha=.2
+):
   """
-  -this function is to train the model it takes the following arguments
-  Args:
-    - model(callable): model to train
-    -batch_size(int): the batch size 
-    - num_epochs(int): the number of epochs
-    -learning_rate(float): learning rate
-    - device(string): cuda or cpu
-    - full_dataset(Dataset): train_valid dataset
+  fonction d'entrainement qui prends en arguments:
+  model: model a entrainer,
+  batch_size(int): taille des batches,
+  num_epochs(int): nombre d'iterations
+  learning_rate(float),
+  device(string): cuda or cpu,
+  train_loader(DataLoader),
+  val_loader(DataLoader)
   """
-  #model setup
-  criterion= nn.CrossEntropyLoss()
-  optimizer= optim.AdamW(model.parameters(),lr=learning_rate,weight_decay=.05)
-  train_loss_history=[]
-  train_acc_history=[]
-  val_loss_history=[]
-  acc_history=[]
-  best_acc=0.0
-  #training loop
+  #configuration de la perte
+  if loss_type=='focal':
+    criterion=FocalLoss(alpha=class_weights,gamma=2)
+  else:
+    criterion= nn.CrossEntropyLoss(weight=class_weights.to(device) if class_weights is not None else None)
+  
+  #optimizer
+  optimizer= optim.AdamW(model.parameters(),lr=learning_rate, weight_decay=.05)
+
+  #learning rate scheduler
+  scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,'max',
+                                                   patience=2,factor=.5) if use_scheduler else None
+  #metrics
+  metrics={
+    'train_loss':[],
+    'val_loss':[],
+    'train_acc':[],
+    'val_acc':[],
+    'lrs':[]
+  }
+
+  best_acc=.0
+  no_improve_epochs=0
+
+  #Training loop
   for epoch in range(num_epochs):
-      model.train()
-      running_loss=0.0
-      correct_train=0
-      total_train=0
-      start_time=time.time()
-      for images,labels in train_loader:
-          images,labels= images.to(device),labels.to(device)
-          
-          optimizer.zero_grad()
+    model.train()
+    running_loss=.0
+    correct_train=0
+    total_train=0
+    start_time= time.time()
+    for images, labels in train_loader:
+      images, labels= images.to(device), labels.to(device)
 
-          outputs=model(images)
-          loss=criterion(outputs,labels)
-          loss.backward()
-          optimizer.step()
+      #mixup augmentation
+      apply_mixup=use_mixup and np.random.rand() <.5
+      if apply_mixup:
+        images, labels_a,labels_b,lam= mixup_data(images,labels,mixup_alpha)
+        images= images.to(device)
+        labels_a= labels_a.to(device)
+        labels_b= labels_b.to(device)
 
-          _,pred= torch.max(outputs.data,1)
-          total_train+=labels.size(0)
-          correct_train+=(pred==labels).sum().item()
-          running_loss+=loss.item()*images.size(0)
+      optimizer.zero_grad()
+      outputs=model(images)
 
-      epoch_train_loss= running_loss/total_train
-      epoch_train_acc=correct_train/total_train
-     #validation phase
-      model.eval()
-      val_loss=.0
-      correct_val=0
-      total_val=0
+      #mixup loss calculation
+      if apply_mixup:
+        loss= mixup_criterion(criterion,outputs,labels_a,labels_b,lam)
+      else:
+        loss=criterion(outputs,labels)
 
-      with torch.no_grad():
-        for images, labels in val_loader:
-          images= images.to(device=device)
-          labels=labels.to(device=device)
-        
-          outputs=model(images)
-          loss=criterion(outputs,labels)
-          val_loss+=loss.item()*images.size(0)
-        
-          _,predicted= torch.max(outputs.data,1)
-          total_val+=labels.size(0)
-          correct_val+=(predicted==labels).sum().item()
+      #gradient handling
+      loss.backward()
+      if clip_grad:
+        torch.nn.utils.clip_grad_norm_(model.parameters(),clip_grad)
+      optimizer.step()
 
-    #calculate validation metrics
-      epoch_val_loss= val_loss/total_val
-      epoch_acc=correct_val/total_val
-    
-      train_loss_history.append(epoch_train_loss)
-      train_acc_history.append(epoch_train_acc)
-      val_loss_history.append(epoch_val_loss)
-      acc_history.append(epoch_acc)
+      #metrics
+      _,pred= torch.max(outputs.data,1)
+      total_train+=labels.size(0)
+      correct_train+=(pred==labels).sum().item()
+      running_loss+=loss.item()*images.size(0)
 
-      #progress logging
-      epoch_time= time.time()-start_time
+    #validation
+    val_loss, val_acc= validate_model(model,criterion,val_loader,device)
 
-      print(f'{epoch+1}/{num_epochs} |' 
-    f'Train Loss:{epoch_train_loss:.4f} | Valid Loss {epoch_val_loss:.4f} |'
-    f'Train acc:{epoch_train_acc: .4f} | Valid Acc {epoch_acc:.4f} | '
+      #update metrics
+    epoch_train_loss= running_loss/total_train
+    epoch_train_accuracy= correct_train/total_train
+    metrics['train_loss'].append(epoch_train_loss)
+    metrics['train_acc'].append(epoch_train_accuracy)
+    metrics['val_loss'].append(val_loss)
+    metrics['val_acc'].append(val_acc)
+    metrics['lrs'].append(optimizer.param_groups[0]['lr'])
+
+      #schedulerstep
+    if use_scheduler and scheduler:
+      scheduler.step(val_acc)
+      
+      #logging
+    epoch_time= time.time()-start_time
+    print(f'{epoch+1}/{num_epochs} |' 
+    f'Train Loss:{epoch_train_loss:.4f} | Valid Loss {val_loss:.4f} |'
+    f'Train acc:{epoch_train_accuracy: .4f} | Valid Acc {val_acc:.4f} | '
+    f'LR:{optimizer.param_groups[0]["lr"]:.2e} |'
     f'Time:{epoch_time//60:.0f}m {epoch_time%60:.0f}s'
     )
+      #save the best model
+    if val_acc >best_acc:
+      best_acc=val_acc
+      torch.save(model.state_dict(),'best_model_v4.pth')
+      no_improve_epochs=0
+    else:
+      no_improve_epochs+=1
+      
+      #Early stopping
+    if no_improve_epochs>= early_stop_patience:
+      print(f'Early stopping after {epoch+1} epochs!')
+      break
+  print(f'Training completed: best validation accuracy{best_acc:.4f}')
+  return metrics
 
-      #save best model
-      if epoch_acc > best_acc:
-        best_acc= epoch_acc
-        torch.save(model.state_dict()
-      ,'best_eff_model.pth')
-    
-    #intermediate saving
-      if (epoch +1) %5==0:
-        torch.save(model.state_dict()
-      ,f'{epoch+1}.pth')
-    
+##########################################################################
+##########################################################################
+#########################################################################
+def validate_model(model,criterion, val_loader,device):
+  model.eval()
+  total_loss=.0
+  correct=0
+  total=0
+  with torch.no_grad():
+    for images, labels in val_loader:
+      images,labels= images.to(device),labels.to(device)
+      outputs=model(images)
+      loss=criterion(outputs,labels)
 
-    #dynamic early stopping
-      if (epoch >10) and (np.mean(acc_history[-5:])<best_acc):
-        print('Early stopping triggered!')
-        break
-  
-  torch.save(model.state_dict(),'model_event_classifier.pth')
-  print('Training completed')
-  return train_loss_history,val_loss_history,train_acc_history,acc_history
+      total_loss+=loss.item()*images.size(0)
+      _,pred= torch.max(outputs.data,1)
+      total+=labels.size(0)
+      correct+=(pred==labels).sum().item()
+  return total_loss/total, correct/total
+##########################################################################
+##########################################################################
+#########################################################################
 
-###########################################################################
-###########################################################################
-###########################################################################
+class_weights = torch.tensor([1.0, 1.0, 1.0, 2.5, 1.5, 1.0, 1.5, 1.0, 1.0])
 
+class FocalLoss(nn.Module):
+  def __init__(self,alpha=class_weights,gamma=2, reduction='mean'):
+    super().__init__()
+    self.alpha=alpha
+    self.gamma= gamma
+    self.reduction=reduction
+  def forward(self,inputs,targets):
+    self.alpha= self.alpha.to(inputs.device)
+    ce_loss=nn.functional.cross_entropy(inputs,targets,reduction='none',weight=self.alpha)
+    pt=torch.exp(-ce_loss)
+    loss= (1-pt)**self.gamma*ce_loss
+    if self.reduction=='mean':
+      return loss.mean()
+    elif self.reduction=='sum':
+      return loss.sum()
+    return loss
+  ##########################################################################
+##########################################################################
+#########################################################################
+
+def mixup_data(x,y,alpha=.2):
+  if alpha>0:
+    lam= float(np.random.beta(alpha,alpha))
+  else:
+    lam=1
+  batch_size= x.size(0)
+  index= torch.randperm(batch_size).to(x.device)
+  mixed_x= lam*x+(1-lam)*x[index,:]
+  y_a,y_b=y,y[index]
+  return mixed_x,y_a,y_b,lam
+
+##########################################################################
+##########################################################################
+#########################################################################
+
+def mixup_criterion(criterion,pred,y_a,y_b,lam):
+  return lam*criterion(pred,y_a)+(1-lam)*criterion(pred,y_b)
+
+
+
+
+##########################################################################
+##########################################################################
+#########################################################################
 def plot_model(history):
-  train_loss=history[0]
-  train_acc=history[3]
-  val_loss=history[1]
-  val_acc=history[3]
+  train_loss=history['train_loss']
+  train_acc= history['train_acc']
+  val_loss= history['val_loss']
+  val_acc=history['val_acc']
+  lrs= history['lrs']
+  
   epochs= list(range(1,len(train_loss)+1))
 
-  plt.figure(figsize=(12,5))
+  plt.figure(figsize=(12,6))
 
   plt.subplot(1,2,1)
   plt.plot(epochs,train_loss,label="Train Loss")
@@ -303,6 +396,14 @@ def plot_model(history):
   plt.title('Accuracy over epochs')
   plt.xlabel('Epoch')
   plt.ylabel("Accuracy")
+  plt.legend()
+  plt.grid(True)
+
+  plt.subplot(1,2,3)
+  plt.plot(epochs,lrs,label="learning_rate")
+  plt.title('Learning rates over epochs')
+  plt.xlabel('epoch')
+  plt.ylabel('Learning rate')
   plt.legend()
   plt.grid(True)
 
