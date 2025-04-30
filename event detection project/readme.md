@@ -32,7 +32,7 @@ avant de rouler la commande de l'article:
 
 - Télécharger les données ici: https://drive.google.com/drive/folders/1jzt7g0KqFNTshEAau95aScPWin55g31E
 
-- Créer un dossier **train** dans le dossier **dataset** et y transférer les données des 7 catégories principales **(corner, free-kick, penalty, red-cards, tackle, to-subtitue, yellow-cards)**. On obtient cette hiérarchie:
+- Créer un dossier **train** dans le dossier **dataset** et y transférer les données d'entrainement des 7 catégories principales **(corner, free-kick, penalty, red-cards, tackle, to-subtitue, yellow-cards)**. On obtient cette hiérarchie:
 
 <img src="images/folder_tree.png" alt="img" width="300"/>
 
