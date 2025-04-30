@@ -44,6 +44,21 @@ avant de rouler la commande de l'article:
 ultérieurement pour l'évaluation du modèle global.
 
 ## Modèle de classification des evenements
+### entrainement
+- Télécharger les données ici: https://drive.google.com/drive/folders/1jzt7g0KqFNTshEAau95aScPWin55g31E
+
+- Créer un dossier **train** dans un dossier de votre choix et transferer les y transférer les données d'entrainement des 10 catégories principales **(corner, free-kick, penalty, red-cards, tackle, to-subtitue, yellow-cards,left,center,right)**
+
+- Ouvrir le notebook **event_classification/train.ipynb** et rouler le code pour entrainer le modele de Classification des évenements. Il vous sera demandé de fournir le chemin des données que vous voulez entraîner. Le modèle sera sauvegardé dans un fichier .pth. Ce fichier pourra être utilisé
+ultérieurement pour l'évaluation du modèle global.
+
+### entrainement
+- Télécharger les données ici: https://drive.google.com/drive/folders/1jzt7g0KqFNTshEAau95aScPWin55g31E
+
+- Créer un dossier **test** dans un dossier de votre choix et transferer les y transférer les données d'entrainement des 10 catégories principales **(corner, free-kick, penalty, red-cards, tackle, to-subtitue, yellow-cards,left,center,right)**
+
+- Ouvrir le notebook **event_classification/model_eval.ipynb** et rouler le code pour entrainer le modele de Classification des évenements. Il vous sera demandé de fournir le chemin des données et le chemin du modèle que vous voulez tester qui se trouve dans **event_classification/models/** que vous voulez essayer (il y'en a 2).
+
 
 ## Modèle des cartons
 
