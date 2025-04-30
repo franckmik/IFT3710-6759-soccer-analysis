@@ -30,11 +30,30 @@ avant de rouler la commande de l'article:
 
 ## VAE
 
+- Télécharger les données ici: https://drive.google.com/drive/folders/1jzt7g0KqFNTshEAau95aScPWin55g31E
+
+- Créer un dossier **train** dans le dossier **dataset** et y transférer les données des 7 catégories principales **(corner, free-kick, penalty, red-cards, tackle, to-subtitue, yellow-cards)**. On obtient cette hiérarchie:
+
+<img src="images/folder_tree.png" alt="img" width="300"/>
+
+<img src="images/folder_tree_2.png" alt="img" width="300"/>
+
+- Ouvrir le notebook **vae_model/main.ipynb** et rouler le code pour entrainer un modèle VAE. Le modèle sera sauvegardé dans un fichier .pth. Ce fichier pourra être utilisé
+ultérieurement pour l'évaluation du modèle global.
+
 ## Modèle de classification des evenements
 
 ## Modèle des cartons
 
 # Evaluation du modèle global
 
+- Créer un dossier **test** dans le dossier **dataset** et y transférer la totalité des données de test récupérés ici: https://drive.google.com/drive/folders/1jzt7g0KqFNTshEAau95aScPWin55g31E. On obtient cette hiérarchie:
 
+<img src="images/test_folder_tree.png" alt="img" width="300"/>
+
+- Consulter le fichier **global_model.py** et s'assurer que les fichiers des modèles sont bien référencés
+
+<img src="images/global_model_code.png" alt="img" width="300"/>
+
+- Rouler le notebook **main.ipynb** à la racine pour évaluer le modèle global
 
